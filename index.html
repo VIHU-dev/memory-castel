@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Castelo das Memórias</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to bottom, #f5f0e6, #e0d4c1);
+      text-align: center;
+      padding: 20px;
+      color: #333;
+    }
+
+    h1 {
+      font-size: 2.5em;
+      color: #7b4c20;
+    }
+
+    #castle {
+      margin-top: 40px;
+    }
+
+    .room {
+      margin: 10px;
+      padding: 15px 25px;
+      font-size: 18px;
+      border: none;
+      border-radius: 12px;
+      background-color: #d4af37;
+      color: white;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    .room:hover {
+      background-color: #b9982e;
+    }
+
+    #popup {
+      position: fixed;
+      top: 20%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: white;
+      padding: 20px;
+      border: 2px solid #7b4c20;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 300px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    textarea {
+      width: 100%;
+      height: 120px;
+      padding: 10px;
+      font-size: 16px;
+      resize: none;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+
+    .buttons {
+      display: flex;
+      justify-content: space-between;
+    }
+  </style>
+</head>
+<body>
+  <h1>🏰 Castelo das Memórias</h1>
+  <p>Clique em uma parte do castelo para guardar ou lembrar de algo especial.</p>
+
+  <div id="castle">
+    <button class="room" onclick="openRoom('torre')">Torre 🗼</button>
+    <button class="room" onclick="openRoom('jardim')">Jardim 🌸</button>
+    <button class="room" onclick="openRoom('sala')">Sala do Trono 👑</button>
+  </div>
+
+  <div id="popup" class="hidden">
+    <h2 id="roomTitle"></h2>
+    <textarea id="memoryText" placeholder="Escreva sua memória aqui..."></textarea>
+    <div class="buttons">
+      <button onclick="saveMemory()">💾 Salvar</button>
+      <button onclick="closePopup()">❌ Fechar</button>
+    </div>
+  </div>
+
+  <script>
+    let currentRoom = '';
+
+    function openRoom(roomName) {
+      currentRoom = roomName;
+      const saved = localStorage.getItem(roomName);
+      document.getElementById('memoryText').value = saved || '';
+
+      const titleMap = {
+        'torre': 'Torre das Cartas 🗼',
+        'jardim': 'Jardim das Lembranças 🌸',
+        'sala': 'Sala do Trono 👑'
+      };
+
+      document.getElementById('roomTitle').textContent = titleMap[roomName] || 'Memória';
+      document.getElementById('popup').classList.remove('hidden');
+    }
+
+    function closePopup() {
+      document.getElementById('popup').classList.add('hidden');
+    }
+
+    function saveMemory() {
+      const text = document.getElementById('memoryText').value;
+      localStorage.setItem(currentRoom, text);
+      alert("Memória salva com sucesso na " + currentRoom + "!");
+      closePopup();
+    }
+  </script>
+</body>
+</html>
