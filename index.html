@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Castelo das Memórias</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h1>🏰 Castelo das Memórias</h1>
+  <div id="castle">
+    <button class="room" onclick="openRoom('torre')">Torre 🗼</button>
+    <button class="room" onclick="openRoom('jardim')">Jardim 🌸</button>
+    <button class="room" onclick="openRoom('sala')">Sala do Trono 👑</button>
+  </div>
+
+  <div id="popup" class="hidden">
+    <textarea id="memoryText" placeholder="Escreva sua memória..."></textarea>
+    <button onclick="saveMemory()">Salvar</button>
+    <button onclick="closePopup()">Fechar</button>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
