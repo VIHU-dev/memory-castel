@@ -97,6 +97,7 @@
    ========================= */
 
 // --- Canvas e contexto
+const keysPressed = {}; // Armazena o estado das teclas
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
@@ -230,13 +231,11 @@ const keyDown = new Set();
 document.addEventListener('keydown', (e) => {
   keyDown.add(e.key);
   // setas movem por "grade" (um tile por vez)
-  if (!moving) {
-    let dx=0, dy=0, dir=player.dir;
-    if (e.key === 'w')    { dy=-1; dir='up'; }
-    if (e.key === 's')  { dy=+1; dir='down'; }
-    if (e.key === 'a')  { dx=-1; dir='left'; }
-    if (e.key === 'd') { dx=+1; dir='right'; }
-    if (dx || dy) tryMove(dx, dy, dir);
+ const speed = 2; // ou o valor que você usa no seu jogo
+if (keysPressed["ArrowUp"] || keysPressed["w"]) player.y -= speed;
+if (keysPressed["ArrowDown"] || keysPressed["s"]) player.y += speed;
+if (keysPressed["ArrowLeft"] || keysPressed["a"]) player.x -= speed;
+if (keysPressed["ArrowRight"] || keysPressed["d"]) player.x += speed;
   }
   // Interagir
   if (e.key.toLowerCase() === 'e') {
