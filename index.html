@@ -1,176 +1,483 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-  <meta charset="UTF-8">
-  <title>Castelo da Memória 2D</title>
-  <style>
-    body {
-      margin: 0;
-      background: #111;
-      font-family: sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-    }
-
-    canvas {
-      border: 3px solid #fff;
-      image-rendering: pixelated;
-    }
-
-    #popup {
-      position: absolute;
-      background: white;
-      border: 2px solid #333;
-      border-radius: 10px;
-      padding: 20px;
-      display: none;
-      flex-direction: column;
-      gap: 10px;
-      width: 300px;
-      z-index: 10;
-    }
-
-    textarea {
-      width: 100%;
-      height: 100px;
-      resize: none;
-      font-size: 14px;
-    }
-
-    .buttons {
-      display: flex;
-      justify-content: space-between;
-    }
-
-    button {
-      padding: 5px 10px;
-      font-weight: bold;
-      cursor: pointer;
-    }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Castelo da Memória 2D (Single File)</title>
+<style>
+  :root {
+    --ui: #222;
+    --bg: #101015;
+    --ink: #eee;
+    --accent: #ffd54a;
+    --accent2: #9ad6ff;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%; margin: 0; background: var(--bg); color: var(--ink);
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  }
+  .wrap {
+    height: 100%; display: grid; place-items: center;
+  }
+  canvas {
+    border: 2px solid #fff3; image-rendering: pixelated;
+    background: #000;
+  }
+  .hud {
+    position: fixed; top: 10px; left: 10px; padding: 8px 12px;
+    background: #0009; border: 1px solid #fff2; border-radius: 10px;
+    backdrop-filter: blur(4px); font-size: 14px; line-height: 1.3;
+  }
+  .hud b { color: var(--accent); }
+  .hint {
+    position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%);
+    background: #0009; border: 1px solid #fff2; border-radius: 10px; padding: 8px 12px;
+    font-size: 14px;
+  }
+  /* Popup de memória */
+  #popup {
+    position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    background: #0008; z-index: 10;
+  }
+  #card {
+    width: min(90vw, 420px); background: #1b1b22; border: 1px solid #ffffff22;
+    border-radius: 14px; padding: 14px; display: grid; gap: 10px;
+    box-shadow: 0 8px 30px #000a;
+  }
+  #card h3 { margin: 0; font-weight: 700; color: var(--accent); }
+  #memoryText {
+    width: 100%; height: 140px; resize: vertical; padding: 10px;
+    border-radius: 10px; border: 1px solid #ffffff22; background: #101014; color: var(--ink);
+    font-size: 14px;
+  }
+  .row {
+    display: flex; gap: 10px; justify-content: flex-end;
+  }
+  button {
+    padding: 8px 12px; border-radius: 10px; border: 1px solid #ffffff22; cursor: pointer;
+    background: #2a2a33; color: var(--ink); font-weight: 700;
+  }
+  button.primary { background: #3b2f13; border-color: #ffd54a66; color: var(--accent); }
+  .toast {
+    position: fixed; right: 12px; bottom: 12px; background: #0d2816; color: #baf7c1;
+    border: 1px solid #2b7a2b; padding: 8px 12px; border-radius: 10px; display: none;
+  }
+</style>
 </head>
 <body>
-  <canvas id="gameCanvas" width="416" height="416"></canvas>
+<div class="wrap">
+  <canvas id="game" width="640" height="448" aria-label="Castelo 2D"></canvas>
+</div>
 
-  <div id="popup">
-    <h3 id="popupTitle"></h3>
+<div class="hud" id="hud">
+  <div>🗺️ Sala: <b id="roomName">–</b></div>
+  <div>Pos: <span id="pos">x0,y0</span></div>
+  <div>Controles: Setas para mover • <b>E</b> interagir • <b>Esc</b> fechar popup</div>
+</div>
+<div class="hint" id="hint">Aproxime-se de ⭐ para abrir uma memória (<b>E</b>). Portas 🚪 trocam de sala.</div>
+
+<!-- POPUP -->
+<div id="popup" role="dialog" aria-modal="true">
+  <div id="card">
+    <h3 id="memTitle">Memória</h3>
     <textarea id="memoryText" placeholder="Escreva sua memória aqui..."></textarea>
-    <div class="buttons">
-      <button onclick="saveMemory()">Salvar</button>
-      <button onclick="closePopup()">Fechar</button>
+    <div class="row">
+      <button id="closeBtn">Fechar (Esc)</button>
+      <button class="primary" id="saveBtn">Salvar</button>
     </div>
   </div>
+</div>
 
-  <script>
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
-    const tileSize = 32;
+<div class="toast" id="toast">Memória salva!</div>
 
-    const map = [
-      "############",
-      "#....T.....#",
-      "#..####....#",
-      "#..#..#....#",
-      "#..#..#....#",
-      "#..####..J.#",
-      "#....S.....#",
-      "############"
-    ];
+<script>
+/* =========================
+   ENGINE 2D SEM DEPENDÊNCIAS
+   ========================= */
 
-    const player = { x: 1, y: 1, color: "#FFD700" };
+// --- Canvas e contexto
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
 
-    function drawMap() {
-      for (let y = 0; y < map.length; y++) {
-        for (let x = 0; x < map[y].length; x++) {
-          const tile = map[y][x];
-          ctx.fillStyle = tile === "#" ? "#444" : "#ccc";
-          ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+// --- UI
+const hudRoom = document.getElementById('roomName');
+const hudPos  = document.getElementById('pos');
+const popup   = document.getElementById('popup');
+const memTitle= document.getElementById('memTitle');
+const memoryText = document.getElementById('memoryText');
+const saveBtn = document.getElementById('saveBtn');
+const closeBtn= document.getElementById('closeBtn');
+const toast   = document.getElementById('toast');
 
-          // Destacar locais especiais
-          if (tile === "T") drawSymbol(x, y, "👑");
-          if (tile === "J") drawSymbol(x, y, "🌸");
-          if (tile === "S") drawSymbol(x, y, "📖");
+// --- Config
+const tile = 32;
+const speed = 6; // px por frame (tween de grade)
+let moving = false;
+let tween = { x:0, y:0, tx:0, ty:0 };
+
+// --- Mapa via ASCII + entidades embutidas
+// Símbolos: # parede, . piso, (outros são "entidades" lidas e viram piso)
+function defMap(name, ascii, legend, spawn) {
+  return { name, ascii, legend, spawn };
+}
+
+const MAPS = {
+  // Sala do Trono
+  sala: defMap('Sala do Trono', [
+    "####################",
+    "#......M.....#.....#",
+    "#............#..A..#",
+    "#..######....#.....#",
+    "#..#....#....#.....#",
+    "#..#....#....#.....#",
+    "#..######....#.....#",
+    "#..........B.......#",
+    "####################",
+  ], {
+    // Memórias (id único por mapa)
+    "M": { type:"memory", id:"trono", title:"Sala do Trono 👑" },
+    // Portas: A -> jardim, B -> biblioteca
+    "A": { type:"door", to:"jardim", spawn:{x:2,y:2} },
+    "B": { type:"door", to:"biblioteca", spawn:{x:2,y:2} },
+  }, { x: 2, y: 2 }),
+
+  // Jardim
+  jardim: defMap('Jardim das Lembranças', [
+    "####################",
+    "#..F...............#",
+    "#..................#",
+    "#..................#",
+    "#......M...........#",
+    "#..................#",
+    "#..................#",
+    "#....S.............#",
+    "####################",
+  ], {
+    "M": { type:"memory", id:"flores", title:"Jardim das Lembranças 🌸" },
+    "F": { type:"memory", id:"fonte",  title:"Som da Fonte 💧" },
+    "S": { type:"door", to:"sala", spawn:{x:14,y:2} }, // volta para sala
+  }, { x: 10, y: 5 }),
+
+  // Biblioteca
+  biblioteca: defMap('Biblioteca', [
+    "####################",
+    "#..M..####.........#",
+    "#.....#..#.........#",
+    "#..####..#.........#",
+    "#..#.....#.........#",
+    "#..#..L..#.........#",
+    "#..####..#.........#",
+    "#....S.............#",
+    "####################",
+  ], {
+    "M": { type:"memory", id:"livro", title:"Citação Favorita 📖" },
+    "L": { type:"memory", id:"luz",   title:"Luz da Janela ✨" },
+    "S": { type:"door", to:"sala", spawn:{x:15,y:6} },
+  }, { x: 3, y: 2 }),
+};
+
+// Estado do mundo após "parse"
+function parseMap(def) {
+  const h = def.ascii.length;
+  const w = def.ascii[0].length;
+  const solid = new Set();       // tiles sólidos (parede)
+  const memories = [];           // {x,y,key,title}
+  const doors = [];              // {x,y,to,spawn}
+  const floorColor = '#1b1f29';
+  const wallColor  = '#40465a';
+
+  for (let y=0; y<h; y++) {
+    const row = def.ascii[y];
+    for (let x=0; x<w; x++) {
+      const ch = row[x];
+      if (ch === '#') {
+        solid.add(`${x},${y}`);
+      } else if (ch === '.') {
+        // piso vazio
+      } else {
+        // entidade: vira piso e registra
+        const ent = def.legend[ch];
+        if (ent) {
+          if (ent.type === 'memory') {
+            memories.push({ x, y, key: ent.id, title: ent.title });
+          } else if (ent.type === 'door') {
+            doors.push({ x, y, to: ent.to, spawn: ent.spawn });
+          }
         }
       }
     }
+  }
+  return { w, h, solid, memories, doors, floorColor, wallColor, name: def.name };
+}
 
-    function drawSymbol(x, y, emoji) {
-      ctx.font = "20px Arial";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(emoji, x * tileSize + tileSize / 2, y * tileSize + tileSize / 2);
+// --- Mundo corrente
+let currentId = 'sala';
+let world = parseMap(MAPS[currentId]);
+
+// --- Jogador
+const player = {
+  gx: MAPS[currentId].spawn.x,
+  gy: MAPS[currentId].spawn.y,
+  px: MAPS[currentId].spawn.x * tile,
+  py: MAPS[currentId].spawn.y * tile,
+  dir: 'down', // up/down/left/right
+  step: 0,     // animação de passada
+};
+
+// Helpers
+const keyDown = new Set();
+document.addEventListener('keydown', (e) => {
+  keyDown.add(e.key);
+  // setas movem por "grade" (um tile por vez)
+  if (!moving) {
+    let dx=0, dy=0, dir=player.dir;
+    if (e.key === 'ArrowUp')    { dy=-1; dir='up'; }
+    if (e.key === 'ArrowDown')  { dy=+1; dir='down'; }
+    if (e.key === 'ArrowLeft')  { dx=-1; dir='left'; }
+    if (e.key === 'ArrowRight') { dx=+1; dir='right'; }
+    if (dx || dy) tryMove(dx, dy, dir);
+  }
+  // Interagir
+  if (e.key.toLowerCase() === 'e') {
+    interact();
+  }
+  // Fechar popup
+  if (e.key === 'Escape') {
+    hidePopup();
+  }
+});
+document.addEventListener('keyup', (e) => keyDown.delete(e.key));
+
+function tileSolid(x, y) {
+  if (x < 0 || y < 0 || x >= world.w || y >= world.h) return true;
+  return world.solid.has(`${x},${y}`);
+}
+
+function tryMove(dx, dy, dir) {
+  const nx = player.gx + dx;
+  const ny = player.gy + dy;
+  player.dir = dir;
+  if (!tileSolid(nx, ny)) {
+    moving = true;
+    tween.x = player.px; tween.y = player.py;
+    tween.tx = nx * tile; tween.ty = ny * tile;
+    player.gx = nx; player.gy = ny;
+    player.step = (player.step + 1) % 20; // animação simples
+    // Checar porta/memória quando chegar (feito no fim do tween)
+  }
+}
+
+// Tween simples por frame
+function updateTween() {
+  if (!moving) return;
+  const dx = tween.tx - tween.x;
+  const dy = tween.ty - tween.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist <= speed) {
+    // chegou
+    tween.x = tween.tx; tween.y = tween.ty;
+    player.px = tween.tx; player.py = tween.ty;
+    moving = false;
+    arrived();
+  } else {
+    const ang = Math.atan2(dy, dx);
+    tween.x += Math.cos(ang) * speed;
+    tween.y += Math.sin(ang) * speed;
+    player.px = tween.x; player.py = tween.y;
+  }
+}
+
+// Ao chegar num tile novo
+function arrived() {
+  // Atualiza HUD
+  hudPos.textContent = `x${player.gx},y${player.gy}`;
+
+  // Porta?
+  const door = world.doors.find(d => d.x === player.gx && d.y === player.gy);
+  if (door) {
+    switchMap(door.to, door.spawn);
+    return;
+  }
+  // Dica: se estiver em memória, pisca hint
+}
+
+function switchMap(id, spawn) {
+  currentId = id;
+  world = parseMap(MAPS[id]);
+  player.gx = spawn.x; player.gy = spawn.y;
+  player.px = spawn.x * tile; player.py = spawn.y * tile;
+  tween.x = player.px; tween.y = player.py; tween.tx = player.px; tween.ty = player.py;
+  moving = false;
+  hudRoom.textContent = world.name;
+  hudPos.textContent = `x${player.gx},y${player.gy}`;
+}
+
+// Interação (memória)
+let currentMemKey = null;
+function interact() {
+  const mem = world.memories.find(m => m.x === player.gx && m.y === player.gy);
+  if (!mem) return;
+  currentMemKey = `${currentId}:${mem.key}`;
+  memTitle.textContent = mem.title;
+  memoryText.value = localStorage.getItem(currentMemKey) || "";
+  showPopup();
+}
+
+// Popup/Salvar
+function showPopup() { popup.style.display = 'flex'; memoryText.focus(); }
+function hidePopup() { popup.style.display = 'none'; currentMemKey = null; }
+saveBtn.addEventListener('click', () => {
+  if (!currentMemKey) return;
+  localStorage.setItem(currentMemKey, memoryText.value);
+  pingToast("Memória salva!");
+  playSaveSound();
+  hidePopup();
+});
+closeBtn.addEventListener('click', hidePopup);
+
+// Toast
+let toastTimer = null;
+function pingToast(msg) {
+  toast.textContent = msg;
+  toast.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.style.display = 'none', 1500);
+}
+
+// Som gerado por código (opcional)
+let audioCtx = null;
+function playSaveSound() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'triangle';
+    o.frequency.value = 660;
+    g.gain.value = 0.0001;
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start();
+    // pequeno "plim"
+    g.gain.exponentialRampToValueAtTime(0.2, audioCtx.currentTime + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.25);
+    o.stop(audioCtx.currentTime + 0.27);
+  } catch(e) {}
+}
+
+// Render
+function draw() {
+  // fundo
+  ctx.fillStyle = '#0c0f14';
+  ctx.fillRect(0,0,canvas.width, canvas.height);
+  // mapa
+  for (let y=0; y<world.h; y++) {
+    for (let x=0; x<world.w; x++) {
+      const solid = world.solid.has(`${x},${y}`);
+      ctx.fillStyle = solid ? world.wallColor : world.floorColor;
+      ctx.fillRect(x*tile, y*tile, tile, tile);
+      // grade suave
+      ctx.fillStyle = solid ? '#00000022' : '#ffffff05';
+      ctx.fillRect(x*tile, y*tile, tile, tile);
     }
+  }
+  // entidades (memórias / portas)
+  world.memories.forEach(m => {
+    const has = localStorage.getItem(`${currentId}:${m.key}`);
+    // ⭐ se já tem memória, senão ✨
+    const emoji = has ? '⭐' : '✨';
+    drawEmoji(emoji, m.x, m.y);
+  });
+  world.doors.forEach(d => drawEmoji('🚪', d.x, d.y));
 
-    function drawPlayer() {
-      ctx.fillStyle = player.color;
-      ctx.fillRect(player.x * tileSize, player.y * tileSize, tileSize, tileSize);
-    }
+  // jogador sprite “procedural”
+  drawPlayer();
 
-    function update() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawMap();
-      drawPlayer();
-    }
+  // tween
+  updateTween();
 
-    function canMove(x, y) {
-      const tile = map[y]?.[x];
-      return tile && tile !== "#";
-    }
+  requestAnimationFrame(draw);
+}
 
-    function checkMemoryTile() {
-      const tile = map[player.y][player.x];
-      const memoryMap = {
-        "T": "Sala do Trono 👑",
-        "J": "Jardim das Lembranças 🌸",
-        "S": "Sala dos Segredos 📖"
-      };
+function drawEmoji(e, x, y) {
+  ctx.save();
+  ctx.font = '20px system-ui';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(e, x*tile + tile/2, y*tile + tile/2);
+  ctx.restore();
+}
 
-      if (memoryMap[tile]) {
-        openPopup(memoryMap[tile], tile);
-      }
-    }
+function drawPlayer() {
+  const t = (player.step/20);
+  const bob = Math.sin(performance.now()/120) * 1.2; // leve “pulo”
+  const x = player.px, y = player.py;
 
-    document.addEventListener("keydown", (e) => {
-      let nx = player.x;
-      let ny = player.y;
+  // sombra
+  ctx.fillStyle = '#0007';
+  ctx.beginPath();
+  ctx.ellipse(x+tile/2, y+tile*0.78, tile*0.28, tile*0.14, 0, 0, Math.PI*2);
+  ctx.fill();
 
-      if (e.key === "ArrowUp") ny--;
-      if (e.key === "ArrowDown") ny++;
-      if (e.key === "ArrowLeft") nx--;
-      if (e.key === "ArrowRight") nx++;
+  // corpo
+  ctx.save();
+  ctx.translate(x + tile/2, y + tile/2 + bob);
+  // direção (triângulo “nariz”)
+  let angle = 0;
+  if (player.dir === 'up') angle = -Math.PI/2;
+  if (player.dir === 'down') angle =  Math.PI/2;
+  if (player.dir === 'left') angle =  Math.PI;
+  if (player.dir === 'right') angle =  0;
 
-      if (canMove(nx, ny)) {
-        player.x = nx;
-        player.y = ny;
-        update();
-        checkMemoryTile();
-      }
-    });
+  // cabeça
+  roundRect(-10, -14, 20, 20, 6, '#ffd54a', '#2a220c');
 
-    // --- POPUP ---
-    let currentKey = "";
+  // olhos
+  ctx.fillStyle = '#1a1a1a';
+  const eyeDx = (player.dir === 'left') ? -3 : (player.dir === 'right') ? 3 : 0;
+  const eyeDy = (player.dir === 'up') ? -2 : (player.dir === 'down') ? 2 : 0;
+  ctx.fillRect(-4+eyeDx, -6+eyeDy, 3, 3);
+  ctx.fillRect( 1+eyeDx, -6+eyeDy, 3, 3);
 
-    function openPopup(title, key) {
-      currentKey = key;
-      document.getElementById("popupTitle").textContent = title;
-      document.getElementById("memoryText").value = localStorage.getItem(key) || "";
-      document.getElementById("popup").style.display = "flex";
-    }
+  // corpo/roupa
+  roundRect(-11, 3, 22, 14, 4, '#3b4a77', '#12161f');
 
-    function closePopup() {
-      document.getElementById("popup").style.display = "none";
-    }
+  // pernas (animação simples)
+  const leg = Math.sin(performance.now()/120) * 2;
+  ctx.fillStyle = '#1b2338';
+  ctx.fillRect(-6 - leg, 14, 6, 6);
+  ctx.fillRect( 0 + leg, 14, 6, 6);
 
-    function saveMemory() {
-      const text = document.getElementById("memoryText").value;
-      localStorage.setItem(currentKey, text);
-      alert("Memória salva com sucesso!");
-      closePopup();
-    }
+  // direção “nariz”
+  ctx.rotate(angle);
+  ctx.fillStyle = '#e2b93a';
+  ctx.beginPath();
+  ctx.moveTo( 0, -10);
+  ctx.lineTo( 6,  0);
+  ctx.lineTo(-6,  0);
+  ctx.closePath();
+  ctx.fill();
 
-    update();
-  </script>
+  ctx.restore();
+}
+
+function roundRect(x, y, w, h, r, fill, stroke) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y,   x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x,   y+h, r);
+  ctx.arcTo(x,   y+h, x,   y,   r);
+  ctx.arcTo(x,   y,   x+w, y,   r);
+  if (fill)  { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke){ ctx.strokeStyle = stroke; ctx.stroke(); }
+}
+
+// Inicializa
+function init() {
+  hudRoom.textContent = world.name;
+  hudPos.textContent = `x${player.gx},y${player.gy}`;
+  requestAnimationFrame(draw);
+}
+init();
+</script>
 </body>
 </html>
