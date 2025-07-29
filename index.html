@@ -232,10 +232,10 @@ document.addEventListener('keydown', (e) => {
   // setas movem por "grade" (um tile por vez)
   if (!moving) {
     let dx=0, dy=0, dir=player.dir;
-    if (e.key === 'ArrowUp')    { dy=-1; dir='up'; }
-    if (e.key === 'ArrowDown')  { dy=+1; dir='down'; }
-    if (e.key === 'ArrowLeft')  { dx=-1; dir='left'; }
-    if (e.key === 'ArrowRight') { dx=+1; dir='right'; }
+    if (e.key === 'w')    { dy=-1; dir='up'; }
+    if (e.key === 's')  { dy=+1; dir='down'; }
+    if (e.key === 'a')  { dx=-1; dir='left'; }
+    if (e.key === 'd') { dx=+1; dir='right'; }
     if (dx || dy) tryMove(dx, dy, dir);
   }
   // Interagir
