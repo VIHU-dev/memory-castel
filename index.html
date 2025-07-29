@@ -1,126 +1,176 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Castelo das Memórias</title>
+  <meta charset="UTF-8">
+  <title>Castelo da Memória 2D</title>
   <style>
     body {
-      font-family: 'Segoe UI', sans-serif;
-      background: linear-gradient(to bottom, #f5f0e6, #e0d4c1);
-      text-align: center;
-      padding: 20px;
-      color: #333;
+      margin: 0;
+      background: #111;
+      font-family: sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
     }
 
-    h1 {
-      font-size: 2.5em;
-      color: #7b4c20;
-    }
-
-    #castle {
-      margin-top: 40px;
-    }
-
-    .room {
-      margin: 10px;
-      padding: 15px 25px;
-      font-size: 18px;
-      border: none;
-      border-radius: 12px;
-      background-color: #d4af37;
-      color: white;
-      cursor: pointer;
-      transition: 0.3s;
-    }
-
-    .room:hover {
-      background-color: #b9982e;
+    canvas {
+      border: 3px solid #fff;
+      image-rendering: pixelated;
     }
 
     #popup {
-      position: fixed;
-      top: 20%;
-      left: 50%;
-      transform: translateX(-50%);
+      position: absolute;
       background: white;
-      padding: 20px;
-      border: 2px solid #7b4c20;
+      border: 2px solid #333;
       border-radius: 10px;
-      display: flex;
+      padding: 20px;
+      display: none;
       flex-direction: column;
       gap: 10px;
       width: 300px;
-      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-    }
-
-    .hidden {
-      display: none;
+      z-index: 10;
     }
 
     textarea {
       width: 100%;
-      height: 120px;
-      padding: 10px;
-      font-size: 16px;
+      height: 100px;
       resize: none;
-      border: 1px solid #ccc;
-      border-radius: 6px;
+      font-size: 14px;
     }
 
     .buttons {
       display: flex;
       justify-content: space-between;
     }
+
+    button {
+      padding: 5px 10px;
+      font-weight: bold;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
-  <h1>🏰 Castelo das Memórias</h1>
-  <p>Clique em uma parte do castelo para guardar ou lembrar de algo especial.</p>
+  <canvas id="gameCanvas" width="416" height="416"></canvas>
 
-  <div id="castle">
-    <button class="room" onclick="openRoom('torre')">Torre 🗼</button>
-    <button class="room" onclick="openRoom('jardim')">Jardim 🌸</button>
-    <button class="room" onclick="openRoom('sala')">Sala do Trono 👑</button>
-  </div>
-
-  <div id="popup" class="hidden">
-    <h2 id="roomTitle"></h2>
+  <div id="popup">
+    <h3 id="popupTitle"></h3>
     <textarea id="memoryText" placeholder="Escreva sua memória aqui..."></textarea>
     <div class="buttons">
-      <button onclick="saveMemory()">💾 Salvar</button>
-      <button onclick="closePopup()">❌ Fechar</button>
+      <button onclick="saveMemory()">Salvar</button>
+      <button onclick="closePopup()">Fechar</button>
     </div>
   </div>
 
   <script>
-    let currentRoom = '';
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const tileSize = 32;
 
-    function openRoom(roomName) {
-      currentRoom = roomName;
-      const saved = localStorage.getItem(roomName);
-      document.getElementById('memoryText').value = saved || '';
+    const map = [
+      "############",
+      "#....T.....#",
+      "#..####....#",
+      "#..#..#....#",
+      "#..#..#....#",
+      "#..####..J.#",
+      "#....S.....#",
+      "############"
+    ];
 
-      const titleMap = {
-        'torre': 'Torre das Cartas 🗼',
-        'jardim': 'Jardim das Lembranças 🌸',
-        'sala': 'Sala do Trono 👑'
+    const player = { x: 1, y: 1, color: "#FFD700" };
+
+    function drawMap() {
+      for (let y = 0; y < map.length; y++) {
+        for (let x = 0; x < map[y].length; x++) {
+          const tile = map[y][x];
+          ctx.fillStyle = tile === "#" ? "#444" : "#ccc";
+          ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+
+          // Destacar locais especiais
+          if (tile === "T") drawSymbol(x, y, "👑");
+          if (tile === "J") drawSymbol(x, y, "🌸");
+          if (tile === "S") drawSymbol(x, y, "📖");
+        }
+      }
+    }
+
+    function drawSymbol(x, y, emoji) {
+      ctx.font = "20px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(emoji, x * tileSize + tileSize / 2, y * tileSize + tileSize / 2);
+    }
+
+    function drawPlayer() {
+      ctx.fillStyle = player.color;
+      ctx.fillRect(player.x * tileSize, player.y * tileSize, tileSize, tileSize);
+    }
+
+    function update() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawMap();
+      drawPlayer();
+    }
+
+    function canMove(x, y) {
+      const tile = map[y]?.[x];
+      return tile && tile !== "#";
+    }
+
+    function checkMemoryTile() {
+      const tile = map[player.y][player.x];
+      const memoryMap = {
+        "T": "Sala do Trono 👑",
+        "J": "Jardim das Lembranças 🌸",
+        "S": "Sala dos Segredos 📖"
       };
 
-      document.getElementById('roomTitle').textContent = titleMap[roomName] || 'Memória';
-      document.getElementById('popup').classList.remove('hidden');
+      if (memoryMap[tile]) {
+        openPopup(memoryMap[tile], tile);
+      }
+    }
+
+    document.addEventListener("keydown", (e) => {
+      let nx = player.x;
+      let ny = player.y;
+
+      if (e.key === "ArrowUp") ny--;
+      if (e.key === "ArrowDown") ny++;
+      if (e.key === "ArrowLeft") nx--;
+      if (e.key === "ArrowRight") nx++;
+
+      if (canMove(nx, ny)) {
+        player.x = nx;
+        player.y = ny;
+        update();
+        checkMemoryTile();
+      }
+    });
+
+    // --- POPUP ---
+    let currentKey = "";
+
+    function openPopup(title, key) {
+      currentKey = key;
+      document.getElementById("popupTitle").textContent = title;
+      document.getElementById("memoryText").value = localStorage.getItem(key) || "";
+      document.getElementById("popup").style.display = "flex";
     }
 
     function closePopup() {
-      document.getElementById('popup').classList.add('hidden');
+      document.getElementById("popup").style.display = "none";
     }
 
     function saveMemory() {
-      const text = document.getElementById('memoryText').value;
-      localStorage.setItem(currentRoom, text);
-      alert("Memória salva com sucesso na " + currentRoom + "!");
+      const text = document.getElementById("memoryText").value;
+      localStorage.setItem(currentKey, text);
+      alert("Memória salva com sucesso!");
       closePopup();
     }
+
+    update();
   </script>
 </body>
 </html>
