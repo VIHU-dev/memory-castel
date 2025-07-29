@@ -1,0 +1,50 @@
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background: #f9f1e9;
+  text-align: center;
+  padding: 20px;
+}
+
+#castle {
+  margin-top: 40px;
+}
+
+.room {
+  margin: 10px;
+  padding: 15px 25px;
+  font-size: 18px;
+  border: none;
+  border-radius: 12px;
+  background-color: #d4af37;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.room:hover {
+  background-color: #c49b2d;
+}
+
+#popup {
+  position: fixed;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: white;
+  padding: 20px;
+  border: 2px solid #333;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hidden {
+  display: none;
+}
+
+textarea {
+  width: 300px;
+  height: 120px;
+  padding: 10px;
+  font-size: 16px;
+}
