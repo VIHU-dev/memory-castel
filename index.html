@@ -276,7 +276,7 @@ document.addEventListener("keydown", (e) => {
 document.addEventListener("keyup", (e) => {
   keysPressed[e.key] = false;
 });
-// Tween simples por frame
+
 function tryStartMoving() {
   if (moving) return;
 
@@ -298,26 +298,28 @@ function tryStartMoving() {
 }
 function updateTween() {
   if (!moving) return;
+
   const dx = tween.tx - tween.x;
   const dy = tween.ty - tween.y;
   const dist = Math.hypot(dx, dy);
+
   if (dist <= speed) {
     // chegou
-    tween.x = tween.tx; tween.y = tween.ty;
-    player.px = tween.tx; player.py = tween.ty;
-  moving = false;
-arrived();
-tryStartMoving(); // tenta continuar andando se tecla ainda estiver pressionada
+    tween.x = tween.tx;
+    tween.y = tween.ty;
+    player.px = tween.tx;
+    player.py = tween.ty;
+    moving = false;
+    arrived();
+
+    // 👇 novo: tenta continuar andando
+    tryStartMoving();
   } else {
     const ang = Math.atan2(dy, dx);
     tween.x += Math.cos(ang) * speed;
     tween.y += Math.sin(ang) * speed;
-    player.px = tween.x; player.py = tween.y;
-    moving = false;
-    arrived();
-// 👇 tenta começar o próximo movimento automaticamente
-tryStartMoving();
-
+    player.px = tween.x;
+    player.py = tween.y;
   }
 }
 // Ao chegar num tile novo
