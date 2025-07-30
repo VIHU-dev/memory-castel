@@ -2,321 +2,422 @@
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Castelo da Memória</title>
+  <title>Castelo da Memória - Aventura</title>
   <style>
     body {
       margin: 0;
-      font-family: 'Segoe UI', sans-serif;
-      background-color: #111;
-      color: white;
-      overflow: hidden;
+      background: #222;
+      color: #fff;
+      font-family: sans-serif;
+      text-align: center;
     }
 
     canvas {
+      background: #333;
       display: block;
       margin: 0 auto;
-      background: #1e1e1e;
-      border: 4px solid #d4af37;
+      border: 4px solid #444;
     }
 
-    #menu {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.9);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      flex-direction: column;
-      z-index: 2;
-    }
-
-    #menu h1 {
-      font-size: 3em;
-      margin-bottom: 20px;
-      color: #d4af37;
-    }
-
-    #menu button {
-      padding: 15px 30px;
-      font-size: 18px;
-      background-color: #d4af37;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
-      transition: 0.3s;
-    }
-
-    #menu button:hover {
-      background-color: #b9982e;
-    }
-
-    #dialogo {
-      position: absolute;
-      bottom: 0;
-      width: 100%;
-      background: rgba(0,0,0,0.8);
-      padding: 10px;
-      font-size: 16px;
-      color: #fff;
-      font-style: italic;
-      text-align: center;
-      z-index: 3;
-      display: none;
+    #hud {
+      margin-top: 10px;
     }
   </style>
 </head>
 <body>
-  <div id="menu">
-    <h1>🏰 Castelo da Memória</h1>
-    <button onclick="startGame()">Novo Jogo</button>
-  </div>
+  <h1>🏰 Castelo da Memória</h1>
+  <canvas id="game" width="320" height="320"></canvas>
+  <div id="hud">Vida: <span id="vida">3</span></div>
 
-  <div id="dialogo">Bem-vindo ao castelo...</div>
-  <canvas id="game" width="640" height="480"></canvas>
-<script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
-const dialogo = document.getElementById("dialogo");
-let gameRunning = false;
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
 
-// Música tema (gerada por Web Audio API)
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-function tocarMusica() {
-  const o = audioCtx.createOscillator();
-  const g = audioCtx.createGain();
-  o.type = 'triangle';
-  o.frequency.setValueAtTime(220, audioCtx.currentTime);
-  g.gain.setValueAtTime(0.1, audioCtx.currentTime);
-  o.connect(g);
-  g.connect(audioCtx.destination);
-  o.start();
-  o.stop(audioCtx.currentTime + 1.5);
-}
+    const tile = 32;
+    const linhas = 10;
+    const colunas = 10;
 
-// Estados e variáveis principais
-let keys = {};
-let level = 1;
-let player = {
-  x: 2, y: 2,
-  vida: 5,
-  maxVida: 5,
-  cor: "#ffe",
-  facing: "down",
-  moving: false,
-  draw() {
-    // Corpo
-    ctx.fillStyle = this.cor;
-    ctx.beginPath();
-    ctx.arc(this.x * 32 + 16, this.y * 32 + 20, 10, 0, Math.PI * 2);
-    ctx.fill();
-    // Cabeça
-    ctx.fillStyle = "#ffccaa";
-    ctx.beginPath();
-    ctx.arc(this.x * 32 + 16, this.y * 32 + 8, 6, 0, Math.PI * 2);
-    ctx.fill();
-    // Olhos
-    ctx.fillStyle = "#000";
-    ctx.beginPath();
-    ctx.arc(this.x * 32 + 14, this.y * 32 + 7, 1.5, 0, Math.PI * 2);
-    ctx.arc(this.x * 32 + 18, this.y * 32 + 7, 1.5, 0, Math.PI * 2);
-    ctx.fill();
-  }
-};
+    const mapa = [
+      "##########",
+      "#........#",
+      "#..##....#",
+      "#..#.....#",
+      "#..#..#..#",
+      "#.....#..#",
+      "#.###....#",
+      "#........#",
+      "#........#",
+      "##########"
+    ];
 
-let mapa = [
-  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,1],
-  [1,0,1,1,0,1,1,0,1,1,1,1,0,1,1,0,1,0,0,1],
-  [1,0,1,0,0,1,0,0,0,0,0,1,0,0,1,0,1,0,0,1],
-  [1,0,1,0,1,1,0,1,1,1,0,1,1,0,1,0,1,0,0,1],
-  [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,3,1],
-  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-];
+    const player = {
+      x: 1,
+      y: 1,
+      dir: "down",
+      cor: "#00ffcc"
+    };
 
-function startGame() {
-  document.getElementById("menu").style.display = "none";
-  gameRunning = true;
-  tocarMusica();
-  requestAnimationFrame(loop);
-}
+    const teclas = {};
 
-document.addEventListener("keydown", (e) => {
-  keys[e.key.toLowerCase()] = true;
-});
-document.addEventListener("keyup", (e) => {
-  keys[e.key.toLowerCase()] = false;
-});
-let inimigos = [
-  { x: 5, y: 1, vida: 3, ativo: true },
-  { x: 15, y: 4, vida: 2, ativo: true }
-];
+    window.addEventListener("keydown", (e) => {
+      teclas[e.key] = true;
+    });
 
-let princesa = { x: 18, y: 5, salva: false };
+    window.addEventListener("keyup", (e) => {
+      teclas[e.key] = false;
+    });
 
-let poções = [{ x: 3, y: 3, usada: false }];
-
-function desenharMapa() {
-  for (let y = 0; y < mapa.length; y++) {
-    for (let x = 0; x < mapa[0].length; x++) {
-      let bloco = mapa[y][x];
-      ctx.fillStyle = bloco === 1 ? "#444" : "#ccc";
-      ctx.fillRect(x * 32, y * 32, 32, 32);
+    function desenharMapa() {
+      for (let y = 0; y < linhas; y++) {
+        for (let x = 0; x < colunas; x++) {
+          const bloco = mapa[y][x];
+          ctx.fillStyle = bloco === "#" ? "#666" : "#222";
+          ctx.fillRect(x * tile, y * tile, tile, tile);
+        }
+      }
     }
-  }
-}
 
-function desenharInimigos() {
-  for (let i of inimigos) {
-    if (!i.ativo) continue;
-    ctx.fillStyle = "#c00";
-    ctx.beginPath();
-    ctx.arc(i.x * 32 + 16, i.y * 32 + 16, 10, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#000";
-    ctx.fillRect(i.x * 32 + 12, i.y * 32 + 12, 4, 4); // olhos
-  }
-}
+    function desenharPlayer() {
+      ctx.fillStyle = player.cor;
+      ctx.beginPath();
+      ctx.arc(player.x * tile + tile / 2, player.y * tile + tile / 2, tile / 2.5, 0, Math.PI * 2);
+      ctx.fill();
 
-function desenharPrincesa() {
-  if (princesa.salva) return;
-  ctx.fillStyle = "#fdd";
-  ctx.beginPath();
-  ctx.arc(princesa.x * 32 + 16, princesa.y * 32 + 16, 10, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#ff0";
-  ctx.fillRect(princesa.x * 32 + 12, princesa.y * 32 + 5, 8, 4); // coroa
-}
-
-function desenharPocoes() {
-  for (let p of poções) {
-    if (p.usada) continue;
-    ctx.fillStyle = "#0f0";
-    ctx.beginPath();
-    ctx.arc(p.x * 32 + 16, p.y * 32 + 16, 6, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-function desenharHUD() {
-  ctx.fillStyle = "#000";
-  ctx.fillRect(0, 0, canvas.width, 24);
-  ctx.fillStyle = "#fff";
-  ctx.font = "16px sans-serif";
-  ctx.fillText("Vida: " + player.vida + "/" + player.maxVida + " | Nível: " + level, 10, 18);
-}
-
-function checarCombate() {
-  for (let i of inimigos) {
-    if (!i.ativo) continue;
-    if (i.x === player.x && i.y === player.y) {
-      i.vida -= 1;
-      player.vida -= 1;
-      dialogo.innerText = "⚔️ Combate!";
-      dialogo.style.display = "block";
-      setTimeout(() => dialogo.style.display = "none", 1000);
-      if (i.vida <= 0) i.ativo = false;
+      // Olhos simples para direção
+      ctx.fillStyle = "#000";
+      if (player.dir === "up") {
+        ctx.fillRect(player.x * tile + 10, player.y * tile + 8, 4, 4);
+        ctx.fillRect(player.x * tile + 18, player.y * tile + 8, 4, 4);
+      } else if (player.dir === "down") {
+        ctx.fillRect(player.x * tile + 10, player.y * tile + 18, 4, 4);
+        ctx.fillRect(player.x * tile + 18, player.y * tile + 18, 4, 4);
+      } else if (player.dir === "left") {
+        ctx.fillRect(player.x * tile + 6, player.y * tile + 14, 4, 4);
+      } else if (player.dir === "right") {
+        ctx.fillRect(player.x * tile + 22, player.y * tile + 14, 4, 4);
+      }
     }
-  }
-}
-function mover(dx, dy) {
-  const novoX = player.x + dx;
-  const novoY = player.y + dy;
 
-  if (mapa[novoY][novoX] !== 1) {
-    player.x = novoX;
-    player.y = novoY;
-    checarCombate();
-    checarInteracoes();
-  }
-}
-
-let tempoMov = 0;
-function atualizarEntrada() {
-  tempoMov--;
-  if (tempoMov > 0) return;
-
-  if (keys["w"]) { mover(0, -1); player.facing = "up"; tempoMov = 10; }
-  else if (keys["s"]) { mover(0, 1); player.facing = "down"; tempoMov = 10; }
-  else if (keys["a"]) { mover(-1, 0); player.facing = "left"; tempoMov = 10; }
-  else if (keys["d"]) { mover(1, 0); player.facing = "right"; tempoMov = 10; }
-}
-
-function checarInteracoes() {
-  // Poção
-  for (let p of poções) {
-    if (!p.usada && player.x === p.x && player.y === p.y) {
-      player.vida = Math.min(player.maxVida, player.vida + 2);
-      p.usada = true;
-      dialogo.innerText = "Você tomou uma poção 🍵";
-      dialogo.style.display = "block";
-      setTimeout(() => dialogo.style.display = "none", 1000);
+    function podeMover(x, y) {
+      return mapa[y][x] !== "#";
     }
-  }
 
-  // Princesa
-  if (!princesa.salva && player.x === princesa.x && player.y === princesa.y) {
-    princesa.salva = true;
-    dialogo.innerText = "👸 Você salvou a princesa!";
-    dialogo.style.display = "block";
-    setTimeout(() => {
-      dialogo.style.display = "none";
-      vitoria();
-    }, 2000);
-  }
-}
+    function atualizar() {
+      if (teclas["ArrowUp"]) {
+        player.dir = "up";
+        if (podeMover(player.x, player.y - 1)) player.y--;
+      } else if (teclas["ArrowDown"]) {
+        player.dir = "down";
+        if (podeMover(player.x, player.y + 1)) player.y++;
+      } else if (teclas["ArrowLeft"]) {
+        player.dir = "left";
+        if (podeMover(player.x - 1, player.y)) player.x--;
+      } else if (teclas["ArrowRight"]) {
+        player.dir = "right";
+        if (podeMover(player.x + 1, player.y)) player.x++;
+      }
+    }
 
-function vitoria() {
-  gameRunning = false;
-  setTimeout(() => {
-    alert("🏆 Parabéns! Você venceu!\nNew Game+ ativado.");
-    reiniciarJogo();
-  }, 100);
-}
+    function gameLoop() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      atualizar();
+      desenharMapa();
+      desenharPlayer();
+      requestAnimationFrame(gameLoop);
+    }
 
-function reiniciarJogo() {
-  level++;
-  player.x = 2;
-  player.y = 2;
-  player.vida = player.maxVida;
-  princesa.salva = false;
-  poções = [{ x: 3, y: 3, usada: false }];
-  inimigos = [
-    { x: 5, y: 1, vida: 2 + level, ativo: true },
-    { x: 15, y: 4, vida: 2 + level, ativo: true }
-  ];
-  gameRunning = true;
-  requestAnimationFrame(loop);
-}
+    gameLoop();
+    let inimigos = [
+      { x: 6, y: 3, tipo: "slime", vida: 1 },
+      { x: 3, y: 6, tipo: "slime", vida: 1 }
+    ];
 
-function loop() {
-  if (!gameRunning) return;
+    let vida = 3;
+    let atacando = false;
+    let cooldown = 0;
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  desenharMapa();
-  desenharPocoes();
-  desenharPrincesa();
-  desenharInimigos();
-  player.draw();
-  desenharHUD();
-  atualizarEntrada();
+    function desenharInimigos() {
+      inimigos.forEach(inimigo => {
+        if (inimigo.vida > 0) {
+          ctx.fillStyle = "limegreen";
+          ctx.beginPath();
+          ctx.arc(inimigo.x * tile + tile/2, inimigo.y * tile + tile/2, tile/2.6, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+    }
 
-  if (player.vida <= 0) {
-    dialogo.innerText = "💀 Você morreu!";
-    dialogo.style.display = "block";
-    gameRunning = false;
-    setTimeout(() => {
-      alert("Game Over! Reiniciando...");
-      reiniciarJogo();
-    }, 1500);
-    return;
-  }
+    function atacar() {
+      if (cooldown > 0 || atacando) return;
+      atacando = true;
+      cooldown = 20;
 
-  requestAnimationFrame(loop);
-}
-</script>
+      const dx = { up: 0, down: 0, left: -1, right: 1 }[player.dir] || 0;
+      const dy = { up: -1, down: 1, left: 0, right: 0 }[player.dir] || 0;
+
+      const tx = player.x + dx;
+      const ty = player.y + dy;
+
+      inimigos.forEach(inimigo => {
+        if (inimigo.x === tx && inimigo.y === ty && inimigo.vida > 0) {
+          inimigo.vida = 0;
+        }
+      });
+
+      setTimeout(() => atacando = false, 100);
+    }
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === " ") atacar();
+    });
+
+    function verificarColisao() {
+      inimigos.forEach(inimigo => {
+        if (inimigo.vida > 0 && inimigo.x === player.x && inimigo.y === player.y) {
+          vida--;
+          document.getElementById("vida").textContent = vida;
+          inimigo.vida = 0;
+        }
+      });
+
+      if (vida <= 0) {
+        alert("Você morreu! Reiniciando...");
+        location.reload();
+      }
+    }
+
+    // Substituir função atualizar() anterior:
+    function atualizar() {
+      if (cooldown > 0) cooldown--;
+
+      if (teclas["ArrowUp"]) {
+        player.dir = "up";
+        if (podeMover(player.x, player.y - 1)) player.y--;
+      } else if (teclas["ArrowDown"]) {
+        player.dir = "down";
+        if (podeMover(player.x, player.y + 1)) player.y++;
+      } else if (teclas["ArrowLeft"]) {
+        player.dir = "left";
+        if (podeMover(player.x - 1, player.y)) player.x--;
+      } else if (teclas["ArrowRight"]) {
+        player.dir = "right";
+        if (podeMover(player.x + 1, player.y)) player.x++;
+      }
+
+      verificarColisao();
+    }
+
+    // Substituir função gameLoop() anterior:
+    function gameLoop() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      atualizar();
+      desenharMapa();
+      desenharInimigos();
+      desenharPlayer();
+      requestAnimationFrame(gameLoop);
+    }
+
+    gameLoop();
+      let salas = {
+      "inicio": {
+        mapa: [
+          [1,1,1,1,1,1,1,1,1,1],
+          [1,0,0,0,0,0,0,0,0,1],
+          [1,0,1,1,0,1,1,0,0,1],
+          [1,0,1,0,0,0,1,0,0,1],
+          [1,0,0,0,0,0,1,0,0,1],
+          [1,0,1,1,1,0,1,0,0,1],
+          [1,0,0,0,1,0,0,0,0,1],
+          [1,1,1,0,1,1,1,1,0,1],
+          [1,0,0,0,0,0,0,0,0,1],
+          [1,1,1,1,1,1,1,1,1,1]
+        ],
+        inimigos: [
+          { x: 6, y: 3, tipo: "slime", vida: 1 }
+        ],
+        chave: { x: 2, y: 8 }
+      },
+      "sala_boss": {
+        mapa: [
+          [1,1,1,1,1,1,1,1,1,1],
+          [1,0,0,0,0,0,0,0,0,1],
+          [1,0,1,1,1,1,1,1,0,1],
+          [1,0,1,0,0,0,0,1,0,1],
+          [1,0,1,0,1,1,0,1,0,1],
+          [1,0,1,0,0,0,0,1,0,1],
+          [1,0,1,1,1,1,1,1,0,1],
+          [1,0,0,0,0,0,0,0,0,1],
+          [1,0,0,0,0,0,0,0,0,1],
+          [1,1,1,1,1,1,1,1,1,1]
+        ],
+        inimigos: [
+          { x: 5, y: 4, tipo: "boss", vida: 3 }
+        ],
+        princesa: { x: 8, y: 7 }
+      }
+    };
+
+    let salaAtual = "inicio";
+    let chaveColetada = false;
+    let venceu = false;
+
+    function trocarSala(novaSala) {
+      salaAtual = novaSala;
+      player.x = 1;
+      player.y = 1;
+      inimigos = salas[salaAtual].inimigos.map(i => ({ ...i }));
+    }
+
+    function desenharChave() {
+      const chave = salas[salaAtual].chave;
+      if (chave && !chaveColetada) {
+        ctx.fillStyle = "gold";
+        ctx.fillRect(chave.x * tile + tile/3, chave.y * tile + tile/3, tile/3, tile/3);
+      }
+    }
+
+    function desenharPrincesa() {
+      const sala = salas[salaAtual];
+      if (sala.princesa && !venceu) {
+        const p = sala.princesa;
+        ctx.fillStyle = "pink";
+        ctx.beginPath();
+        ctx.arc(p.x * tile + tile/2, p.y * tile + tile/2, tile/3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function verificarEventos() {
+      const s = salas[salaAtual];
+
+      // coletar chave
+      if (s.chave && !chaveColetada && player.x === s.chave.x && player.y === s.chave.y) {
+        chaveColetada = true;
+        alert("Você encontrou a chave!");
+      }
+
+      // entrar na sala do boss
+      if (salaAtual === "inicio" && player.x === 9 && player.y === 8 && chaveColetada) {
+        trocarSala("sala_boss");
+      }
+
+      // vitória
+      if (s.princesa && player.x === s.princesa.x && player.y === s.princesa.y) {
+        venceu = true;
+        alert("Você salvou a princesa! Prepare-se para o New Game+!");
+        reiniciarJogo(true);
+      }
+    }
+
+    function reiniciarJogo(hardmode = false) {
+      player.x = 2;
+      player.y = 2;
+      vida = 3;
+      chaveColetada = false;
+      venceu = false;
+      salaAtual = "inicio";
+      inimigos = salas[salaAtual].inimigos.map(i => ({
+        ...i,
+        vida: hardmode ? 2 : i.vida
+      }));
+    }
+
+    // Alterar desenho do mapa e inimigos para usar a sala atual:
+    function desenharMapa() {
+      const mapa = salas[salaAtual].mapa;
+      for (let y = 0; y < mapa.length; y++) {
+        for (let x = 0; x < mapa[y].length; x++) {
+          if (mapa[y][x] === 1) {
+            ctx.fillStyle = "#666";
+            ctx.fillRect(x * tile, y * tile, tile, tile);
+          } else {
+            ctx.fillStyle = "#dcdcdc";
+            ctx.fillRect(x * tile, y * tile, tile, tile);
+          }
+        }
+      }
+      desenharChave();
+      desenharPrincesa();
+    }
+    // 🎵 Música e efeitos
+    let audioTema = new Audio();
+    audioTema.src = "https://cdn.pixabay.com/audio/2022/03/02/audio_96c8d19e88.mp3";
+    audioTema.loop = true;
+    audioTema.volume = 0.3;
+
+    let audioHit = new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_4da1044a3f.mp3?filename=sword-hit-7165.mp3");
+    let audioWin = new Audio("https://cdn.pixabay.com/download/audio/2021/09/06/audio_685f8a1c30.mp3?filename=win-1-6416.mp3");
+
+    document.addEventListener("keydown", () => {
+      if (audioTema.paused) {
+        audioTema.play().catch(() => {});
+      }
+    }, { once: true });
+
+    function dialogoPrincesa() {
+      setTimeout(() => {
+        alert("Princesa: Obrigada por me salvar, herói! Mas o mal retorna mais forte a cada ciclo...");
+      }, 100);
+    }
+
+    function reiniciarJogo(hardmode = false) {
+      player.x = 2;
+      player.y = 2;
+      vida = 3;
+      chaveColetada = false;
+      venceu = false;
+      salaAtual = "inicio";
+      inimigos = salas[salaAtual].inimigos.map(i => ({
+        ...i,
+        vida: hardmode ? i.vida + 1 : i.vida
+      }));
+
+      if (hardmode) {
+        alert("Modo New Game+ ativado! Prepare-se!");
+      }
+    }
+
+    function verificarEventos() {
+      const s = salas[salaAtual];
+
+      if (s.chave && !chaveColetada && player.x === s.chave.x && player.y === s.chave.y) {
+        chaveColetada = true;
+        alert("Você encontrou a chave!");
+      }
+
+      if (salaAtual === "inicio" && player.x === 9 && player.y === 8 && chaveColetada) {
+        trocarSala("sala_boss");
+      }
+
+      if (s.princesa && player.x === s.princesa.x && player.y === s.princesa.y && !venceu) {
+        venceu = true;
+        audioWin.play();
+        dialogoPrincesa();
+        setTimeout(() => {
+          mostrarCreditos();
+        }, 1500);
+      }
+    }
+
+    function mostrarCreditos() {
+      let msg = "🏰 CASTELO DAS MEMÓRIAS\n\n";
+      msg += "Criado com HTML5 + JS puro\n";
+      msg += "Gráficos e lógica gerados por código\n";
+      msg += "\n🎮 Obrigado por jogar!";
+      alert(msg);
+      reiniciarJogo(true);
+    }
+
+    // Opcional: animação na vitória
+    function animarVitoria() {
+      ctx.fillStyle = "#000000aa";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "white";
+      ctx.font = "32px Arial";
+      ctx.fillText("Você salvou a princesa!", 80, canvas.height / 2);
+    }
+    // Inicia o jogo
+    gameLoop();
+  </script>
 </body>
 </html>
