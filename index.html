@@ -1,515 +1,382 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>Castelo da Memória - Aventura</title>
+  <title>Castelo da Memória</title>
   <style>
     body {
-      margin: 0;
-      background: #222;
-      color: #fff;
-      font-family: sans-serif;
+      background: black;
+      color: white;
+      font-family: monospace;
       text-align: center;
+      margin: 0;
+      padding: 0;
     }
-
     canvas {
-      background: #333;
-      display: block;
-      margin: 0 auto;
-      border: 4px solid #444;
+      border: 2px solid white;
+      background: #111;
+      margin-top: 20px;
     }
-
-    #hud {
+    h1 {
+      margin-top: 20px;
+      font-size: 24px;
+    }
+    #info {
       margin-top: 10px;
+      font-size: 14px;
     }
   </style>
 </head>
 <body>
   <h1>🏰 Castelo da Memória</h1>
-  <canvas id="game" width="320" height="320"></canvas>
-  <div id="hud">Vida: <span id="vida">3</span></div>
+  <canvas id="game" width="512" height="512"></canvas>
+  <div id="info">Use as setas para andar, barra de espaço para atacar, H para usar poção.</div>
 
   <script>
-    const canvas = document.getElementById("game");
-    const ctx = canvas.getContext("2d");
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-    const tile = 32;
-    const linhas = 10;
-    const colunas = 10;
+const tile = 32;
+const mapSize = 16;
+let currentRoom = null;
+let rooms = [];
+let gameState = "playing";
+let keys = {};
+let swordSwing = false;
+let messages = [];
+let newGamePlus = false;
+let music;
 
-    const mapa = [
-      "##########",
-      "#........#",
-      "#..##....#",
-      "#..#.....#",
-      "#..#..#..#",
-      "#.....#..#",
-      "#.###....#",
-      "#........#",
-      "#........#",
-      "##########"
-    ];
-
-    const player = {
-      x: 1,
-      y: 1,
-      dir: "down",
-      cor: "#00ffcc",
-      hp: 5,
-      maxHp: 5
-
-    };
-
-    const teclas = {};
-
-    window.addEventListener("keydown", (e) => {
-      teclas[e.key] = true;
-    });
-
-    window.addEventListener("keyup", (e) => {
-      teclas[e.key] = false;
-    });
-
-    function desenharMapa() {
-      for (let y = 0; y < linhas; y++) {
-        for (let x = 0; x < colunas; x++) {
-          const bloco = mapa[y][x];
-          ctx.fillStyle = bloco === "#" ? "#666" : "#222";
-          ctx.fillRect(x * tile, y * tile, tile, tile);
-        }
-      }
-    }
-
-    function desenharPlayer() {
-      ctx.fillStyle = player.cor;
-      ctx.beginPath();
-      ctx.arc(player.x * tile + tile / 2, player.y * tile + tile / 2, tile / 2.5, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Olhos simples para direção
-      ctx.fillStyle = "#000";
-      if (player.dir === "up") {
-        ctx.fillRect(player.x * tile + 10, player.y * tile + 8, 4, 4);
-        ctx.fillRect(player.x * tile + 18, player.y * tile + 8, 4, 4);
-      } else if (player.dir === "down") {
-        ctx.fillRect(player.x * tile + 10, player.y * tile + 18, 4, 4);
-        ctx.fillRect(player.x * tile + 18, player.y * tile + 18, 4, 4);
-      } else if (player.dir === "left") {
-        ctx.fillRect(player.x * tile + 6, player.y * tile + 14, 4, 4);
-      } else if (player.dir === "right") {
-        ctx.fillRect(player.x * tile + 22, player.y * tile + 14, 4, 4);
-      }
-    }
-
-    function podeMover(x, y) {
-      return mapa[y][x] !== "#";
-    }
-
-    function atualizar() {
-      if (teclas["ArrowUp"]) {
-        player.dir = "up";
-        if (podeMover(player.x, player.y - 1)) player.y--;
-      } else if (teclas["ArrowDown"]) {
-        player.dir = "down";
-        if (podeMover(player.x, player.y + 1)) player.y++;
-      } else if (teclas["ArrowLeft"]) {
-        player.dir = "left";
-        if (podeMover(player.x - 1, player.y)) player.x--;
-      } else if (teclas["ArrowRight"]) {
-        player.dir = "right";
-        if (podeMover(player.x + 1, player.y)) player.x++;
-      }
-    }
-
-    function gameLoop() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      atualizar();
-      desenharMapa();
-      desenharPlayer();
-      requestAnimationFrame(gameLoop);
-    }
-
-    gameLoop();
-    let inimigos = [
-      { x: 6, y: 3, tipo: "slime", vida: 1 },
-      { x: 3, y: 6, tipo: "slime", vida: 1 }
-    ];
-
-    let vida = 3;
-    let atacando = false;
-    let cooldown = 0;
-
-    function desenharInimigos() {
-      inimigos.forEach(inimigo => {
-        if (inimigo.vida > 0) {
-          ctx.fillStyle = "limegreen";
-          ctx.beginPath();
-          ctx.arc(inimigo.x * tile + tile/2, inimigo.y * tile + tile/2, tile/2.6, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      });
-    }
-
-    function atacar() {
-      if (cooldown > 0 || atacando) return;
-      atacando = true;
-      cooldown = 20;
-
-      const dx = { up: 0, down: 0, left: -1, right: 1 }[player.dir] || 0;
-      const dy = { up: -1, down: 1, left: 0, right: 0 }[player.dir] || 0;
-
-      const tx = player.x + dx;
-      const ty = player.y + dy;
-
-      inimigos.forEach(inimigo => {
-        if (inimigo.x === tx && inimigo.y === ty && inimigo.vida > 0) {
-          inimigo.vida = 0;
-        }
-      });
-
-      setTimeout(() => atacando = false, 100);
-    }
-
-    window.addEventListener("keydown", (e) => {
-      if (e.key === " ") atacar();
-    });
-
-    function verificarColisao() {
-      inimigos.forEach(inimigo => {
-        if (inimigo.vida > 0 && inimigo.x === player.x && inimigo.y === player.y) {
-          vida--;
-          document.getElementById("vida").textContent = player.hp;
-          inimigo.vida = 0;
-        }
-      });
-
-      if (vida <= 0) {
-        alert("Você morreu! Reiniciando...");
-        location.reload();
-      }
-    }
-
-    // Substituir função atualizar() anterior:
-    function atualizar() {
-      if (cooldown > 0) cooldown--;
-
-      if (teclas["ArrowUp"]) {
-        player.dir = "up";
-        if (podeMover(player.x, player.y - 1)) player.y--;
-      } else if (teclas["ArrowDown"]) {
-        player.dir = "down";
-        if (podeMover(player.x, player.y + 1)) player.y++;
-      } else if (teclas["ArrowLeft"]) {
-        player.dir = "left";
-        if (podeMover(player.x - 1, player.y)) player.x--;
-      } else if (teclas["ArrowRight"]) {
-        player.dir = "right";
-        if (podeMover(player.x + 1, player.y)) player.x++;
-      }
-
-      verificarColisao();
-      verificarEventos();
-    }
-
-    // Substituir função gameLoop() anterior:
-    function gameLoop() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      atualizar();
-      desenharMapa();
-      drawItems(ctx);         // Desenha os itens no mapa
-      checkItemPickup();      // Verifica se o jogador pegou um item
-      renderHUDExtras(ctx);   // Mostra o inventário na tela
-      desenharInimigos();
-      desenharPlayer();
-      requestAnimationFrame(gameLoop);
-    }
-
-    gameLoop();
-      let salas = {
-      "inicio": {
-        mapa: [
-          [1,1,1,1,1,1,1,1,1,1],
-          [1,0,0,0,0,0,0,0,0,1],
-          [1,0,1,1,0,1,1,0,0,1],
-          [1,0,1,0,0,0,1,0,0,1],
-          [1,0,0,0,0,0,1,0,0,1],
-          [1,0,1,1,1,0,1,0,0,1],
-          [1,0,0,0,1,0,0,0,0,1],
-          [1,1,1,0,1,1,1,1,0,1],
-          [1,0,0,0,0,0,0,0,0,1],
-          [1,1,1,1,1,1,1,1,1,1]
-        ],
-        inimigos: [
-          { x: 6, y: 3, tipo: "slime", vida: 1 }
-        ],
-        chave: { x: 2, y: 8 }
-      },
-      "sala_boss": {
-        mapa: [
-          [1,1,1,1,1,1,1,1,1,1],
-          [1,0,0,0,0,0,0,0,0,1],
-          [1,0,1,1,1,1,1,1,0,1],
-          [1,0,1,0,0,0,0,1,0,1],
-          [1,0,1,0,1,1,0,1,0,1],
-          [1,0,1,0,0,0,0,1,0,1],
-          [1,0,1,1,1,1,1,1,0,1],
-          [1,0,0,0,0,0,0,0,0,1],
-          [1,0,0,0,0,0,0,0,0,1],
-          [1,1,1,1,1,1,1,1,1,1]
-        ],
-        inimigos: [
-          { x: 5, y: 4, tipo: "boss", vida: 3 }
-        ],
-        princesa: { x: 8, y: 7 }
-      }
-    };
-
-    let salaAtual = "inicio";
-    let chaveColetada = false;
-    let venceu = false;
-
-    function trocarSala(novaSala) {
-      salaAtual = novaSala;
-      player.x = 1;
-      player.y = 1;
-      inimigos = salas[salaAtual].inimigos.map(i => ({ ...i }));
-    }
-
-    function desenharChave() {
-      const chave = salas[salaAtual].chave;
-      if (chave && !chaveColetada) {
-        ctx.fillStyle = "gold";
-        ctx.fillRect(chave.x * tile + tile/3, chave.y * tile + tile/3, tile/3, tile/3);
-      }
-    }
-
-    function desenharPrincesa() {
-      const sala = salas[salaAtual];
-      if (sala.princesa && !venceu) {
-        const p = sala.princesa;
-        ctx.fillStyle = "pink";
-        ctx.beginPath();
-        ctx.arc(p.x * tile + tile/2, p.y * tile + tile/2, tile/3, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    function verificarEventos() {
-      const s = salas[salaAtual];
-
-      // coletar chave
-      if (s.chave && !chaveColetada && player.x === s.chave.x && player.y === s.chave.y) {
-        chaveColetada = true;
-        alert("Você encontrou a chave!");
-      }
-
-      // entrar na sala do boss
-      if (salaAtual === "inicio" && player.x === 9 && player.y === 8 && chaveColetada) {
-        trocarSala("sala_boss");
-      }
-
-      // vitória
-      if (s.princesa && player.x === s.princesa.x && player.y === s.princesa.y) {
-        venceu = true;
-        alert("Você salvou a princesa! Prepare-se para o New Game+!");
-        reiniciarJogo(true);
-      }
-    }
-
-    function reiniciarJogo(hardmode = false) {
-      player.x = 2;
-      player.y = 2;
-      vida = 3;
-      chaveColetada = false;
-      venceu = false;
-      salaAtual = "inicio";
-      inimigos = salas[salaAtual].inimigos.map(i => ({
-        ...i,
-        vida: hardmode ? 2 : i.vida
-      }));
-    }
-
-    // Alterar desenho do mapa e inimigos para usar a sala atual:
-    function desenharMapa() {
-      const mapa = salas[salaAtual].mapa;
-      for (let y = 0; y < mapa.length; y++) {
-        for (let x = 0; x < mapa[y].length; x++) {
-          if (mapa[y][x] === 1) {
-            ctx.fillStyle = "#666";
-            ctx.fillRect(x * tile, y * tile, tile, tile);
-          } else {
-            ctx.fillStyle = "#dcdcdc";
-            ctx.fillRect(x * tile, y * tile, tile, tile);
-          }
-        }
-      }
-      desenharChave();
-      desenharPrincesa();
-    }
-    // 🎵 Música e efeitos
-    let audioTema = new Audio();
-    audioTema.src = "https://cdn.pixabay.com/audio/2022/03/02/audio_96c8d19e88.mp3";
-    audioTema.loop = true;
-    audioTema.volume = 0.3;
-
-    let audioHit = new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_4da1044a3f.mp3?filename=sword-hit-7165.mp3");
-    let audioWin = new Audio("https://cdn.pixabay.com/download/audio/2021/09/06/audio_685f8a1c30.mp3?filename=win-1-6416.mp3");
-
-    document.addEventListener("keydown", () => {
-      if (audioTema.paused) {
-        audioTema.play().catch(() => {});
-      }
-    }, { once: true });
-
-    function dialogoPrincesa() {
-      setTimeout(() => {
-        alert("Princesa: Obrigada por me salvar, herói! Mas o mal retorna mais forte a cada ciclo...");
-      }, 100);
-    }
-
-    function reiniciarJogo(hardmode = false) {
-      player.x = 2;
-      player.y = 2;
-      vida = 3;
-      chaveColetada = false;
-      venceu = false;
-      salaAtual = "inicio";
-      inimigos = salas[salaAtual].inimigos.map(i => ({
-        ...i,
-        vida: hardmode ? i.vida + 1 : i.vida
-      }));
-
-      if (hardmode) {
-        alert("Modo New Game+ ativado! Prepare-se!");
-      }
-    }
-
-    function verificarEventos() {
-      const s = salas[salaAtual];
-
-      if (s.chave && !chaveColetada && player.x === s.chave.x && player.y === s.chave.y) {
-        chaveColetada = true;
-        alert("Você encontrou a chave!");
-      }
-
-      if (salaAtual === "inicio" && player.x === 9 && player.y === 8 && chaveColetada) {
-        trocarSala("sala_boss");
-      }
-
-      if (s.princesa && player.x === s.princesa.x && player.y === s.princesa.y && !venceu) {
-        venceu = true;
-        audioWin.play();
-        dialogoPrincesa();
-        setTimeout(() => {
-          mostrarCreditos();
-        }, 1500);
-      }
-    }
-
-    function mostrarCreditos() {
-      let msg = "🏰 CASTELO DAS MEMÓRIAS\n\n";
-      msg += "Criado com HTML5 + JS puro\n";
-      msg += "Gráficos e lógica gerados por código\n";
-      msg += "\n🎮 Obrigado por jogar!";
-      alert(msg);
-      reiniciarJogo(true);
-    }
-
-    // Opcional: animação na vitória
-    function animarVitoria() {
-      ctx.fillStyle = "#000000aa";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "white";
-      ctx.font = "32px Arial";
-      ctx.fillText("Você salvou a princesa!", 80, canvas.height / 2);
-    }
-    // Inicia o jogo
-    gameLoop();
-  </script>
-</body>
-</html>
-<script>
-// INVENTÁRIO
-const inventory = {
-  sword: false,
-  potion: 0,
-  key: false
+const player = {
+  x: 1,
+  y: 1,
+  hp: 5,
+  maxHp: 5,
+  hasSword: false,
+  hasPotion: false,
+  hasKey: false,
+  attacking: false,
+  direction: "down"
 };
 
-// Exibir HUD do inventário
-function drawInventory(ctx) {
-  ctx.fillStyle = "#222";
-  ctx.fillRect(10, 10, 150, 70);
-  ctx.fillStyle = "#fff";
-  ctx.font = "14px Arial";
-  ctx.fillText("🎒 Inventário", 20, 28);
-  ctx.fillText(`🗡️ Espada: ${inventory.sword ? "Sim" : "Não"}`, 20, 44);
-  ctx.fillText(`🧪 Poções: ${inventory.potion}`, 20, 60);
-  ctx.fillText(`🗝️ Chave: ${inventory.key ? "Sim" : "Não"}`, 20, 76);
-}
-
-// Atualize seu loop de desenho (dentro de gameLoop por ex.)
-function renderHUDExtras(ctx) {
-  drawInventory(ctx);
-}
-
-// Para usar poção: tecla 'H' (cura 3 de vida)
-document.addEventListener("keydown", (e) => {
-  if (e.key.toLowerCase() === "h") {
-    if (inventory.potion > 0 && player.hp < player.maxHp) {
-      inventory.potion--;
-      player.hp = Math.min(player.hp + 3, player.maxHp);
-      // Efeito sonoro ou mensagem
-      console.log("Você usou uma poção!");
-    }
+function playMusic() {
+  if (!music) {
+    music = new Audio("https://cdn.pixabay.com/download/audio/2023/03/16/audio_b2c5ff3bd1.mp3?filename=lost-fairy-143681.mp3");
+    music.loop = true;
+    music.volume = 0.3;
+    music.play();
   }
-});
-// Lista de itens no mundo
-const worldItems = [
-  { x: 3, y: 2, type: "sword", collected: false },
-  { x: 5, y: 4, type: "potion", collected: false },
-  { x: 6, y: 1, type: "potion", collected: false },
-  { x: 2, y: 5, type: "key", collected: false }
-];
+}
 
-// Desenhar itens no mapa
+const directions = {
+  ArrowUp: { x: 0, y: -1, name: "up" },
+  ArrowDown: { x: 0, y: 1, name: "down" },
+  ArrowLeft: { x: -1, y: 0, name: "left" },
+  ArrowRight: { x: 1, y: 0, name: "right" },
+};
+
+function createRoom(x, y, options = {}) {
+  return {
+    x,
+    y,
+    walls: options.walls || [],
+    enemies: options.enemies || [],
+    items: options.items || [],
+    npcs: options.npcs || [],
+    boss: options.boss || null,
+    exit: options.exit || false,
+    memorySaved: false
+  };
+}
+function drawPlayer() {
+  ctx.fillStyle = "cyan";
+  ctx.fillRect(player.x * tile, player.y * tile, tile, tile);
+}
+
+function drawEnemies(enemies) {
+  enemies.forEach(enemy => {
+    ctx.fillStyle = "red";
+    ctx.fillRect(enemy.x * tile, enemy.y * tile, tile, tile);
+  });
+}
+
 function drawItems(ctx) {
-  for (const item of worldItems) {
-    if (item.collected) continue;
-  const screenX = item.x * tile;
-  const screenY = item.y * tile;
-
-    ctx.fillStyle = {
-      sword: "#cfc",
-      potion: "#f88",
-      key: "#ff0"
-    }[item.type] || "#ccc";
-
+  currentRoom.items.forEach(item => {
+    const screenX = item.x * tile;
+    const screenY = item.y * tile;
+    ctx.fillStyle = item.color;
     ctx.beginPath();
-    if (item.type === "sword") {
-      ctx.fillRect(screenX + 8, screenY + 16, 8, 16);
-      ctx.fillRect(screenX + 12, screenY + 8, 2, 8);
-    } else if (item.type === "potion") {
-      ctx.arc(screenX + 16, screenY + 16, 6, 0, Math.PI * 2);
-    } else if (item.type === "key") {
-      ctx.arc(screenX + 16, screenY + 16, 5, 0, Math.PI * 2);
-      ctx.fillRect(screenX + 15, screenY + 10, 2, 10);
-    }
+    ctx.arc(screenX + tile / 2, screenY + tile / 2, tile / 4, 0, Math.PI * 2);
     ctx.fill();
+  });
+}
+
+function drawNPCs() {
+  currentRoom.npcs.forEach(npc => {
+    ctx.fillStyle = "orange";
+    ctx.fillRect(npc.x * tile, npc.y * tile, tile, tile);
+  });
+}
+
+function drawHUD() {
+  ctx.fillStyle = "white";
+  ctx.font = "16px monospace";
+  ctx.fillText(`❤️ ${player.hp}/${player.maxHp}`, 10, 20);
+  ctx.fillText(`🗝️ ${player.hasKey ? "Sim" : "Não"}`, 10, 40);
+  ctx.fillText(`🗡️ ${player.hasSword ? "Sim" : "Não"}`, 10, 60);
+  ctx.fillText(`🧪 ${player.hasPotion ? "Sim" : "Não"}`, 10, 80);
+}
+
+function drawSword() {
+  if (!player.attacking) return;
+  let dx = 0, dy = 0;
+  if (player.direction === "up") dy = -1;
+  if (player.direction === "down") dy = 1;
+  if (player.direction === "left") dx = -1;
+  if (player.direction === "right") dx = 1;
+
+  ctx.fillStyle = "white";
+  ctx.fillRect((player.x + dx) * tile, (player.y + dy) * tile, tile, tile);
+}
+function movePlayer(dir) {
+  const nx = player.x + dir.x;
+  const ny = player.y + dir.y;
+  if (nx < 0 || ny < 0 || nx >= mapSize || ny >= mapSize) return;
+
+  // Verifica paredes
+  if (currentRoom.walls.some(w => w.x === nx && w.y === ny)) return;
+
+  // Verifica saída para outra sala
+  if (currentRoom.exit && player.hasKey && nx === mapSize - 1 && ny === mapSize - 1) {
+    gameState = "won";
+    return;
+  }
+
+  player.x = nx;
+  player.y = ny;
+  player.direction = dir.name;
+
+  checkItemCollision();
+  checkNPCCollision();
+}
+
+function attack() {
+  if (!player.hasSword || player.attacking) return;
+  player.attacking = true;
+  setTimeout(() => {
+    player.attacking = false;
+  }, 200);
+
+  const dx = directions["Arrow" + capitalize(player.direction)].x;
+  const dy = directions["Arrow" + capitalize(player.direction)].y;
+  const tx = player.x + dx;
+  const ty = player.y + dy;
+
+  currentRoom.enemies = currentRoom.enemies.filter(e => !(e.x === tx && e.y === ty));
+  if (currentRoom.boss && currentRoom.boss.x === tx && currentRoom.boss.y === ty) {
+    currentRoom.boss.hp--;
+    if (currentRoom.boss.hp <= 0) currentRoom.boss = null;
   }
 }
 
-// Verificar se jogador pegou um item
-function checkItemPickup() {
-  for (const item of worldItems) {
-    if (!item.collected && player.x === item.x && player.y === item.y) {
-      item.collected = true;
-      if (item.type === "sword") inventory.sword = true;
-      if (item.type === "potion") inventory.potion++;
-      if (item.type === "key") inventory.key = true;
-      console.log(`Você pegou um(a) ${item.type}!`);
+function capitalize(str) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+function checkItemCollision() {
+  currentRoom.items = currentRoom.items.filter(item => {
+    if (item.x === player.x && item.y === player.y) {
+      if (item.type === "key") player.hasKey = true;
+      if (item.type === "sword") player.hasSword = true;
+      if (item.type === "potion") player.hasPotion = true;
+      return false;
+    }
+    return true;
+  });
+}
+
+function checkNPCCollision() {
+  currentRoom.npcs.forEach(npc => {
+    if (npc.x === player.x && npc.y === player.y && !npc.spoken) {
+      messages.push(npc.message);
+      npc.spoken = true;
+    }
+  });
+}
+function usePotion() {
+  if (player.hasPotion && player.hp < player.maxHp) {
+    player.hp = Math.min(player.maxHp, player.hp + 2);
+    player.hasPotion = false;
+    messages.push("Você usou uma poção!");
+  }
+}
+
+function updateEnemies() {
+  currentRoom.enemies.forEach(enemy => {
+    const dx = player.x - enemy.x;
+    const dy = player.y - enemy.y;
+    const ax = dx !== 0 ? dx / Math.abs(dx) : 0;
+    const ay = dy !== 0 ? dy / Math.abs(dy) : 0;
+
+    const nx = enemy.x + (Math.abs(dx) > Math.abs(dy) ? ax : 0);
+    const ny = enemy.y + (Math.abs(dy) >= Math.abs(dx) ? ay : 0);
+
+    if (!(nx === player.x && ny === player.y) &&
+        !currentRoom.walls.some(w => w.x === nx && w.y === ny)) {
+      enemy.x = nx;
+      enemy.y = ny;
+    }
+
+    if (enemy.x === player.x && enemy.y === player.y) {
+      player.hp--;
+      messages.push("Você foi atingido!");
+    }
+  });
+
+  if (currentRoom.boss && currentRoom.boss.hp > 0) {
+    const boss = currentRoom.boss;
+    const dx = player.x - boss.x;
+    const dy = player.y - boss.y;
+    boss.x += dx !== 0 ? dx / Math.abs(dx) : 0;
+    boss.y += dy !== 0 ? dy / Math.abs(dy) : 0;
+
+    if (boss.x === player.x && boss.y === player.y) {
+      player.hp -= 2;
+      messages.push("O chefe te atacou!");
     }
   }
 }
+function drawMessages() {
+  if (messages.length > 0) {
+    ctx.fillStyle = "yellow";
+    ctx.font = "16px monospace";
+    ctx.fillText(messages[0], 10, canvas.height - 20);
+  }
+}
 
+function nextFrame() {
+  if (gameState === "won") {
+    ctx.fillStyle = "black";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "white";
+    ctx.font = "20px monospace";
+    ctx.fillText("Você salvou a princesa!", 100, 200);
+    ctx.fillText("Parabéns!", 180, 240);
+    ctx.fillText("Pressione Enter para New Game+", 80, 280);
+    return;
+  }
+
+  if (player.hp <= 0) {
+    ctx.fillStyle = "black";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "red";
+    ctx.font = "20px monospace";
+    ctx.fillText("Você morreu!", 180, 200);
+    ctx.fillText("Pressione Enter para tentar novamente.", 60, 240);
+    return;
+  }
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  drawRoom();
+  drawItems();
+  drawNPCs();
+  drawEnemies(currentRoom.enemies);
+  if (currentRoom.boss) drawEnemies([currentRoom.boss]);
+  drawPlayer();
+  drawSword();
+  drawHUD();
+  drawMessages();
+
+  updateEnemies();
+
+  requestAnimationFrame(nextFrame);
+}
+function drawRoom() {
+  ctx.fillStyle = "#222";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = "#444";
+  currentRoom.walls.forEach(w => {
+    ctx.fillRect(w.x * tile, w.y * tile, tile, tile);
+  });
+}
+
+function setupRooms() {
+  rooms = [];
+
+  // Sala inicial
+  rooms.push(createRoom(0, 0, {
+    items: [{x: 5, y: 5, type: "sword", color: "white"}],
+    npcs: [{x: 2, y: 2, message: "Encontre a princesa no castelo!"}]
+  }));
+
+  // Sala com chave
+  rooms.push(createRoom(1, 0, {
+    items: [{x: 3, y: 3, type: "key", color: "yellow"}],
+    enemies: [{x: 7, y: 7}]
+  }));
+
+  // Sala com poção
+  rooms.push(createRoom(0, 1, {
+    items: [{x: 4, y: 4, type: "potion", color: "green"}],
+    enemies: [{x: 5, y: 6}]
+  }));
+
+  // Sala do chefe
+  rooms.push(createRoom(1, 1, {
+    boss: {x: 7, y: 7, hp: 5},
+    exit: true
+  }));
+
+  // Liga as salas
+  currentRoom = rooms[0];
+}
+
+function resetGame() {
+  setupRooms();
+  player.x = 1;
+  player.y = 1;
+  player.hp = newGamePlus ? 3 : 5;
+  player.maxHp = newGamePlus ? 3 : 5;
+  player.hasSword = false;
+  player.hasKey = false;
+  player.hasPotion = false;
+  player.attacking = false;
+  gameState = "playing";
+  messages = [];
+}
+document.addEventListener("keydown", (e) => {
+  keys[e.key] = true;
+
+  if (gameState !== "playing" && e.key === "Enter") {
+    if (gameState === "won") newGamePlus = true;
+    resetGame();
+    playMusic();
+    nextFrame();
+  }
+
+  if (gameState !== "playing") return;
+
+  if (e.key in directions) {
+    movePlayer(directions[e.key]);
+  } else if (e.key === " ") {
+    attack();
+  } else if (e.key.toLowerCase() === "h") {
+    usePotion();
+  }
+
+  // Limpa mensagens após interação
+  if (messages.length > 0) messages.shift();
+});
+
+document.addEventListener("keyup", (e) => {
+  keys[e.key] = false;
+});
+
+resetGame();
+playMusic();
+nextFrame();
 </script>
+</body>
+</html>
