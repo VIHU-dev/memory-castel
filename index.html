@@ -54,7 +54,10 @@
       x: 1,
       y: 1,
       dir: "down",
-      cor: "#00ffcc"
+      cor: "#00ffcc",
+      hp: 5,
+      maxHp: 5
+
     };
 
     const teclas = {};
@@ -175,7 +178,7 @@
       inimigos.forEach(inimigo => {
         if (inimigo.vida > 0 && inimigo.x === player.x && inimigo.y === player.y) {
           vida--;
-          document.getElementById("vida").textContent = vida;
+          document.getElementById("vida").textContent = player.hp;
           inimigo.vida = 0;
         }
       });
@@ -205,6 +208,7 @@
       }
 
       verificarColisao();
+      verificarEventos();
     }
 
     // Substituir função gameLoop() anterior:
@@ -212,6 +216,9 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       atualizar();
       desenharMapa();
+      drawItems(ctx);         // Desenha os itens no mapa
+      checkItemPickup();      // Verifica se o jogador pegou um item
+      renderHUDExtras(ctx);   // Mostra o inventário na tela
       desenharInimigos();
       desenharPlayer();
       requestAnimationFrame(gameLoop);
@@ -421,3 +428,88 @@
   </script>
 </body>
 </html>
+<script>
+// INVENTÁRIO
+const inventory = {
+  sword: false,
+  potion: 0,
+  key: false
+};
+
+// Exibir HUD do inventário
+function drawInventory(ctx) {
+  ctx.fillStyle = "#222";
+  ctx.fillRect(10, 10, 150, 70);
+  ctx.fillStyle = "#fff";
+  ctx.font = "14px Arial";
+  ctx.fillText("🎒 Inventário", 20, 28);
+  ctx.fillText(`🗡️ Espada: ${inventory.sword ? "Sim" : "Não"}`, 20, 44);
+  ctx.fillText(`🧪 Poções: ${inventory.potion}`, 20, 60);
+  ctx.fillText(`🗝️ Chave: ${inventory.key ? "Sim" : "Não"}`, 20, 76);
+}
+
+// Atualize seu loop de desenho (dentro de gameLoop por ex.)
+function renderHUDExtras(ctx) {
+  drawInventory(ctx);
+}
+
+// Para usar poção: tecla 'H' (cura 3 de vida)
+document.addEventListener("keydown", (e) => {
+  if (e.key.toLowerCase() === "h") {
+    if (inventory.potion > 0 && player.hp < player.maxHp) {
+      inventory.potion--;
+      player.hp = Math.min(player.hp + 3, player.maxHp);
+      // Efeito sonoro ou mensagem
+      console.log("Você usou uma poção!");
+    }
+  }
+});
+// Lista de itens no mundo
+const worldItems = [
+  { x: 3, y: 2, type: "sword", collected: false },
+  { x: 5, y: 4, type: "potion", collected: false },
+  { x: 6, y: 1, type: "potion", collected: false },
+  { x: 2, y: 5, type: "key", collected: false }
+];
+
+// Desenhar itens no mapa
+function drawItems(ctx) {
+  for (const item of worldItems) {
+    if (item.collected) continue;
+  const screenX = item.x * tile;
+  const screenY = item.y * tile;
+
+    ctx.fillStyle = {
+      sword: "#cfc",
+      potion: "#f88",
+      key: "#ff0"
+    }[item.type] || "#ccc";
+
+    ctx.beginPath();
+    if (item.type === "sword") {
+      ctx.fillRect(screenX + 8, screenY + 16, 8, 16);
+      ctx.fillRect(screenX + 12, screenY + 8, 2, 8);
+    } else if (item.type === "potion") {
+      ctx.arc(screenX + 16, screenY + 16, 6, 0, Math.PI * 2);
+    } else if (item.type === "key") {
+      ctx.arc(screenX + 16, screenY + 16, 5, 0, Math.PI * 2);
+      ctx.fillRect(screenX + 15, screenY + 10, 2, 10);
+    }
+    ctx.fill();
+  }
+}
+
+// Verificar se jogador pegou um item
+function checkItemPickup() {
+  for (const item of worldItems) {
+    if (!item.collected && player.x === item.x && player.y === item.y) {
+      item.collected = true;
+      if (item.type === "sword") inventory.sword = true;
+      if (item.type === "potion") inventory.potion++;
+      if (item.type === "key") inventory.key = true;
+      console.log(`Você pegou um(a) ${item.type}!`);
+    }
+  }
+}
+
+</script>
